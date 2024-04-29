@@ -51,7 +51,7 @@ class DetectionValidator(BaseValidator):
         self.is_coco = isinstance(val, str) and 'coco' in val and val.endswith(f'{os.sep}val2017.txt')  # is COCO
         self.class_map = ops.coco80_to_coco91_class() if self.is_coco else list(range(1000))
         self.args.save_json |= self.is_coco and not self.training  # run on final val if training COCO
-        self.names = model.names
+        self.names = {0: 'ebike'}
         self.nc = len(model.names)
         self.metrics.names = self.names
         self.metrics.plot = self.args.plots
@@ -76,6 +76,11 @@ class DetectionValidator(BaseValidator):
 
     def update_metrics(self, preds, batch):
         """Metrics."""
+        preds = [pred[pred[:, 5] == 0] for pred in preds]
+        cls_mask = (batch['cls'] == 0).view(-1)
+        batch['cls'] = batch['cls'][cls_mask].view(-1, 1)
+        batch['batch_idx'] = batch['batch_idx'][cls_mask]
+        batch['bboxes'] = batch['bboxes'][cls_mask]
         for si, pred in enumerate(preds):
             idx = batch['batch_idx'] == si
             cls = batch['cls'][idx]
@@ -140,7 +145,6 @@ class DetectionValidator(BaseValidator):
         if self.nt_per_class.sum() == 0:
             LOGGER.warning(
                 f'WARNING ⚠️ no labels found in {self.args.task} set, can not compute metrics without labels')
-
         # Print results per class
         if self.args.verbose and not self.training and self.nc > 1 and len(self.stats):
             for i, c in enumerate(self.metrics.ap_class_index):

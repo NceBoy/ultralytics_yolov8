@@ -1,7 +1,10 @@
 from ultralytics import YOLO
 
 # Load a model
-model = YOLO('yolov8x.pt')  # pretrained YOLOv8n model
+model = YOLO('/root/ultralytics_yolov8/runs/detect/ebike_aug_ft/weights/best.pt')  # pretrained YOLOv8n model
 
 # Run batched inference on a list of images
-model.predict('../datasets/cycles_target/train/images/test-366_jpg.rf.2dadd02877a571fe46e2f7b1baacca85.jpg', save=True)
+# model.predict('../datasets/origin_base/images/valid', save=True, name='ebike_ft_predict')
+model.predict('../datasets/origin_base/images/valid/', save=True, name='ebike_aug_ft_predict')
+
+
