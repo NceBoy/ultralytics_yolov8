@@ -27,6 +27,7 @@ class DetectionValidator(BaseValidator):
         self.iouv = torch.linspace(0.5, 0.95, 10)  # iou vector for mAP@0.5:0.95
         self.niou = self.iouv.numel()
         self.lb = []  # for autolabelling
+        self.names = args.get('cls_names')
 
     def preprocess(self, batch):
         """Preprocesses batch of images for YOLO training."""
@@ -51,8 +52,9 @@ class DetectionValidator(BaseValidator):
         self.is_coco = isinstance(val, str) and 'coco' in val and val.endswith(f'{os.sep}val2017.txt')  # is COCO
         self.class_map = ops.coco80_to_coco91_class() if self.is_coco else list(range(1000))
         self.args.save_json |= self.is_coco and not self.training  # run on final val if training COCO
-        self.names = {0: 'ebike'}
-        self.nc = len(model.names)
+        if self.names is None:
+            self.names = model.names
+        self.nc = len(self.names)
         self.metrics.names = self.names
         self.metrics.plot = self.args.plots
         self.confusion_matrix = ConfusionMatrix(nc=self.nc)
@@ -76,11 +78,16 @@ class DetectionValidator(BaseValidator):
 
     def update_metrics(self, preds, batch):
         """Metrics."""
-        preds = [pred[pred[:, 5] == 0] for pred in preds]
-        cls_mask = (batch['cls'] == 0).view(-1)
+        from functools import reduce
+        cls_indexes = list(self.names.keys())
+        pred_masks = [reduce(lambda x, y: x|y, (pred[:, 5] == idx for idx in cls_indexes)) for pred in preds]
+        preds = [pred[mask] for mask, pred in zip(pred_masks, preds)]
+
+        cls_mask = reduce(lambda x, y: x|y, (batch['cls'] == idx for idx in cls_indexes)).view(-1)
         batch['cls'] = batch['cls'][cls_mask].view(-1, 1)
         batch['batch_idx'] = batch['batch_idx'][cls_mask]
         batch['bboxes'] = batch['bboxes'][cls_mask]
+
         for si, pred in enumerate(preds):
             idx = batch['batch_idx'] == si
             cls = batch['cls'][idx]
